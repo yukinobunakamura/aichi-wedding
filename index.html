@@ -747,6 +747,30 @@ class Component extends DCLogic {
   componentDidMount() {
     this.syncNewsList();
     this.syncHomeGrid();
+    this._onHash = () => this.applyHash(false);
+    window.addEventListener('hashchange', this._onHash);
+    this.applyHash(true);
+  }
+
+  componentWillUnmount() {
+    if (this._onHash) window.removeEventListener('hashchange', this._onHash);
+  }
+
+  /* each article gets its own shareable URL: #/news/107 */
+  applyHash(initial) {
+    const h = (window.location.hash || '').replace(/^#/, '');
+    const art = /^\/news\/(\d+)$/.exec(h);
+    if (art) {
+      if (this.state.page !== 'article' || this._openId !== art[1]) this.openArticle(art[1], true);
+      return;
+    }
+    const pg = /^\/([a-z]+)$/.exec(h);
+    const known = ['home','about','members','news','join','contact'];
+    if (pg && known.indexOf(pg[1]) >= 0) {
+      if (this.state.page !== pg[1]) this.setState({ page: pg[1], menu: false });
+      return;
+    }
+    if (!initial && this.state.page !== 'home') this.setState({ page: 'home', menu: false });
   }
 
   componentDidUpdate() {
@@ -843,14 +867,22 @@ class Component extends DCLogic {
       const art = /^article(\d+)$/.exec(p);
       if (art) { this.openArticle(art[1]); return; }
       const extra = p === 'news' ? { newsPage: 1, newsCat: 'すべて' } : {};
+      this._openId = null;
+      const want = p === 'home' ? '#/' : '#/' + p;
+      if (window.location.hash !== want) { this._skipHash = true; window.location.hash = want; }
       this.setState(Object.assign({ page: p, menu: false }, extra));
       try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch(e) { window.scrollTo(0,0); }
     };
   }
 
   /* article bodies live in articles/NN.html and are fetched only when opened */
-  openArticle(n) {
+  openArticle(n, fromHash) {
     this._cache = this._cache || {};
+    this._openId = String(n);
+    if (!fromHash) {
+      const want = '#/news/' + n;
+      if (window.location.hash !== want) window.location.hash = want;
+    }
     this.setState({ page: 'article', menu: false });
     try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch(e) { window.scrollTo(0,0); }
     const host = document.getElementById('article-body');
